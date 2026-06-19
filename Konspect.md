@@ -90,3 +90,9 @@ git push origin --delete «» - Удалить ветку на github
 git pull origin main - поддятнуть изменения с github в локальный репозиторий.
 
 git clone https://github.com/USERNAME/REPOSITORY.git 
+
+git log --oneline - вывод истории коммитов в одну строку
+
+git checkout hash-коммита - вернуться на момент указанного коммита
+
+git checkout main - вернуться к последнему коммиту
