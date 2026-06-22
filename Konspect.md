@@ -14,33 +14,33 @@
 - IDE VsCode, PyCharm
 
 # Middle
-Системы сборки. (C#, Java, Go и т.д.)
-Публикация мобильных приложений. Appstore, GooglePlay
-Тестирование ПО и его автоматизация
-Мониторинг и администрирование БД
-Основы работы с очередями. Rabbit-mq
-Контейнеризация приложения, сети в docker, docker-compose, docker swarm, docker registry
-Docker и CI/CD
-Gitlab Ci, GitHubCi
-Системы управления конфигурациями. Ansible. Yaml
-Микросервисы. Основы Kubernetes. kubectl, kubeadm
-Основы чартов kubernetes. Helm
-Основы Google cloud
-Основы Amazon AWS
-Основы Azure
-Основы serverless решений
-Логирование. ELK стэк
-Мониторинг. Prometheus/grafana стэк
+- Системы сборки. (C#, Java, Go и т.д.)
+- Публикация мобильных приложений. Appstore, GooglePlay
+- Тестирование ПО и его автоматизация
+- Мониторинг и администрирование БД
+- Основы работы с очередями. Rabbit-mq
+- Контейнеризация приложения, сети в docker, docker-compose, docker swarm, docker registry
+- Docker и CI/CD
+- Gitlab Ci, GitHubCi
+- Системы управления конфигурациями. Ansible. Yaml
+- Микросервисы. Основы Kubernetes. kubectl, kubeadm
+- Основы чартов kubernetes. Helm
+- Основы Google cloud
+- Основы Amazon AWS
+- Основы Azure
+- Основы serverless решений
+- Логирование. ELK стэк
+- Мониторинг. Prometheus/grafana стэк
 
 # Senjor.
-Архитектура высоконагруженных и высокодоступных приложений
-Балансировка нагрузки
-Системы хранения данных
-Кластеризация БД
-Сети и сетевая безопасность
-Kubernetes Service Mesh
-Kubernetes Monitoring
-Ansible, terraform, helm
+- Архитектура высоконагруженных и высокодоступных приложений
+- Балансировка нагрузки
+- Системы хранения данных
+- Кластеризация БД
+- Сети и сетевая безопасность
+- Kubernetes Service Mesh
+- Kubernetes Monitoring
+- Ansible, terraform, helm
  
 # Общий конспект
 DevOps - главная роль - автоматизировать работу разработчиков и вывод продукта к пользователю быстро и без ошибок
@@ -299,8 +299,356 @@ sudo ufw status
 
 10.Узнать IP
 hostname -I
+
 Что делает:
 показывает только IP
 
 ssh serveradmin@192.168.100.129
+
 su - serveradmin
+
+http://192.168.100.129
+
+### Написать свой systemd- юнит
+
+1.Создаём папку
+
+Под пользователем serveradmin:
+
+mkdir -p ~/myserver
+
+cd ~/myserver
+
+2.Создаём простой сервер
+nano server.py
+
+Содержимое:
+
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+server = HTTPServer(("0.0.0.0", 8000), SimpleHTTPRequestHandler)
+
+print("Server started on port 8000")
+
+server.serve_forever()
+
+Проверка:
+
+python3 server.py
+
+В браузере:
+
+http://192.168.100.129:8000
+
+Должна открыться страница.
+
+Остановить:
+
+Ctrl+C
+3.Создаём systemd unit
+sudo nano /etc/systemd/system/myserver.service
+
+Содержимое:
+
+[Unit]
+Description=My Python HTTP Server
+After=network.target
+
+[Service]
+Type=simple
+User=serveradmin
+WorkingDirectory=/home/serveradmin/myserver
+
+ExecStart=/usr/bin/python3 /home/serveradmin/myserver/server.py
+
+Restart=always
+RestartSec=3
+
+MemoryMax=100M
+
+[Install]
+WantedBy=multi-user.target
+Разбор
+After=network.target
+
+Сначала сеть → потом сервис.
+
+User=serveradmin
+
+Запускать НЕ от root.
+
+WorkingDirectory
+
+Текущая папка процесса.
+
+ExecStart
+
+Что запускать:
+
+/usr/bin/python3 server.py
+Restart=always
+
+Если процесс завершится:
+
+systemd запустит его снова
+RestartSec=3
+
+Подождать 3 секунды перед рестартом.
+
+MemoryMax=100M
+
+Ограничение памяти через cgroups.
+
+Больше 100 МБ процесс использовать не сможет.
+
+4.Перечитать конфигурацию
+
+После создания юнита:
+
+sudo systemctl daemon-reload
+
+Что происходит?
+
+systemd перечитывает:
+
+/etc/systemd/system
+5.Запуск сервиса
+sudo systemctl start myserver
+
+Проверка:
+
+systemctl status myserver
+
+Должно быть:
+
+Active: active (running)
+6.Автозапуск
+sudo systemctl enable myserver
+
+Теперь после перезагрузки сервис поднимется сам.
+
+Проверка:
+
+systemctl is-enabled myserver
+
+Ответ:
+
+enabled
+7.Проверка через браузер
+
+Открой:
+
+http://192.168.100.129:8000
+
+Если страница открылась — сервис работает.
+
+8.Проверка рестарта после kill -9
+
+Найти PID:
+
+systemctl status myserver
+
+или
+
+ps aux | grep server.py
+
+Например:
+
+PID 4321
+
+Убиваем:
+
+sudo kill -9 4321
+
+Через пару секунд:
+
+systemctl status myserver
+
+Увидишь новый PID.
+
+Это означает:
+
+systemd заметил смерть процесса
+↓
+запустил новый
+
+9.Проверка лимита памяти
+
+Посмотреть настройки:
+
+systemctl show myserver | grep Memory
+
+Будет что-то вроде:
+
+MemoryMax=104857600
+
+100 МБ.
+
+10.Посмотреть логи
+
+Очень важная команда:
+
+journalctl -u myserver -f
+
+Показывает лог сервиса в реальном времени.
+
+Если сервер упал:
+
+systemd restart service
+
+это будет видно здесь.
+
+### Приложение backend + frontend + БД вручную на Linux
+
+1.Создание проекта
+
+mkdir notes-app
+
+Создает папку проекта.
+
+mkdir — создать директорию.
+
+cd notes-app
+
+Переход в папку проекта.
+
+cd — change directory.
+
+2.Создание виртуального окружения
+
+python3 -m venv venv
+
+Создает изолированное Python окружение.
+
+-m venv — запуск модуля создания виртуального окружения.
+venv — имя папки окружения.
+
+3.Активация venv
+
+source venv/bin/activate
+
+Активирует виртуальное окружение.
+
+source — выполнить скрипт в текущей оболочке.
+venv/bin/activate — файл активации.
+
+4.Установка зависимостей
+pip install flask psycopg2-binary
+
+Устанавливает библиотеки.
+
+pip — менеджер пакетов Python.
+flask — веб-фреймворк.
+psycopg2-binary — драйвер PostgreSQL.
+
+5.Запуск PostgreSQL
+sudo -u postgres psql
+
+Открывает консоль PostgreSQL.
+
+sudo — запуск от администратора.
+-u postgres — пользователь postgres.
+psql — клиент PostgreSQL.
+
+6.Создание базы данных
+CREATE DATABASE notesdb;
+
+Создает базу данных notesdb.
+
+7.Создание пользователя
+CREATE USER notesuser WITH PASSWORD '1234';
+
+Создает пользователя базы данных.
+
+8.Выдача прав
+GRANT ALL PRIVILEGES ON DATABASE notesdb TO notesuser;
+
+Выдает полный доступ пользователю к базе.
+
+9.Подключениек БД
+psql -h localhost -p 5433 -U notesuser -d notesdb
+
+-h — адрес сервера
+-p — порт
+-U — пользователь
+-d — база данных
+
+10.Создание таблицы
+CREATE TABLE notes (
+    id SERIAL PRIMARY KEY,
+    content TEXT NOT NULL
+);
+
+SERIAL — автоинкремент
+PRIMARY KEY — уникальный идентификатор
+TEXT NOT NULL — обязательное поле
+
+11.Запуск Flask
+
+Flask — это микрофреймворк для создания веб-приложений на Python.
+
+python app.py
+
+Запускает сервер Flask.
+
+12.systemdсервис
+sudo nano /etc/systemd/system/notesapp.service
+
+Создание файла сервиса.
+
+13.Основные настройки systemd
+WorkingDirectory=/home/serveradmin/notes-app
+
+Папка запуска проекта.
+
+ExecStart=/home/serveradmin/notes-app/venv/bin/python /home/serveradmin/notes-app/app.py
+
+Команда запуска приложения.
+
+Restart=always
+
+Автоматический перезапуск при падении.
+
+WantedBy=multi-user.target
+
+Запуск при старте системы.
+
+14.Управление сервисом
+sudo systemctl daemon-reload
+
+Перечитывает конфигурации systemd.
+
+sudo systemctl start notesapp
+
+Запускает сервис.
+
+sudo systemctl enable notesapp
+
+Включает автозапуск.
+
+systemctl status notesapp
+
+Показывает статус сервиса.
+
+15.Логи сервиса
+journalctl -u notesapp -n 50 --no-pager
+
+Показывает последние логи сервиса.
+
+-u — имя сервиса
+-n — количество строк
+--no-pager — без постраничного вывода
+
+16.Типичные ошибки
+
+CHDIR
+Неверный WorkingDirectory.
+
+TemplateNotFound
+Нет папки templates.
+
+Portinuse
+Порт уже занят другим процессом.
+
+No such file
+Неверный путь к файлу.
